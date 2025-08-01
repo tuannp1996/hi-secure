@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:hi_secure/model/app.dart';
 import 'package:hi_secure/service/app_service.dart';
@@ -17,6 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final authService = AuthService();
   bool _isAuthenticated = false;
   bool _isLoading = true;
+  int _failCount = 0;
 
   Future<void> loadApps() async {
     final _apps = await sharedStorage.getApps();
@@ -29,38 +32,91 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    _checkAuthentication();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _promptAuthentication(); // gọi sau khi build xong
+    });
   }
 
-  Future<void> _checkAuthentication() async {
-    final passcodeSet = await authService.isPasscodeSet();
-    
-    if (!passcodeSet) {
-      // First time setup
-      final setupSuccess = await authService.showSetupDialog(context);
-      if (setupSuccess) {
-        setState(() {
-          _isAuthenticated = true;
-          _isLoading = false;
-        });
-        loadApps();
-      } else {
-        // User cancelled setup, show loading screen
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    } else {
-      // Authenticate existing user
-      final authenticated = await authService.authenticate(context);
-      setState(() {
-        _isAuthenticated = authenticated;
-        _isLoading = false;
-      });
-      if (authenticated) {
-        loadApps();
+  Future<void> _promptAuthentication() async {
+    bool authenticated = false;
+    if (!mounted) return;
+
+    while (_failCount < 3 && !authenticated) {
+      try {
+        final authenticated = await showBiometricDialog(context);
+
+        if (!authenticated) {
+          _failCount++;
+          if (_failCount >= 3) {
+            _showErrorDialog(context, 'Xác thực thất bại 3 lần. Ứng dụng sẽ tự thoát.');
+            await Future.delayed(Duration(seconds: 2));
+            exit(0); // thoát app (chạy trên Android/iOS thật)
+          } else {
+            _showErrorDialog(context, 'Xác thực thất bại. Vui lòng thử lại (${_failCount}/3)');
+          }
+        } else {
+          setState(() {
+            _isAuthenticated = authenticated;
+            _isLoading = false;
+          });
+          await loadApps();
+          _failCount = 0;
+          break;
+        }
+      } catch (e) {
+        _showErrorDialog(context, 'Lỗi xác thực: $e');
+        break;
       }
     }
+  }
+
+  void _showErrorDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text('Thông báo'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('OK'),
+          )
+        ],
+      ),
+    );
+  }
+
+
+  Future<bool> showBiometricDialog(BuildContext context) async {
+    return await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            Future.microtask(() async {
+              final authenticated = await authService.authenticateBiometricOnly();
+
+              if (!context.mounted) return;
+
+              Navigator.of(context).pop(authenticated);
+            });
+
+            return AlertDialog(
+              title: Text('Xác thực'),
+              content: Row(
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(width: 16),
+                  Expanded(child: Text('Vui lòng xác thực bằng vân tay hoặc khuôn mặt...')),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((value) => value ?? false);
   }
 
   void _openAccounts(App app) {
@@ -133,37 +189,30 @@ class _HomeScreenState extends State<HomeScreen> {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.lock,
+                Icons.security,
                 size: 80,
                 color: Colors.white,
               ),
               SizedBox(height: 24),
               Text(
-                'Authentication Required',
+                'Hi Secure',
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: 28,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
                 ),
               ),
               SizedBox(height: 16),
               Text(
-                'Please authenticate to access Hi Secure',
+                'Setting up security...',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white70,
                 ),
               ),
               SizedBox(height: 32),
-              ElevatedButton.icon(
-                onPressed: () => _checkAuthentication(),
-                icon: Icon(Icons.security),
-                label: Text('Authenticate'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
-                  foregroundColor: Colors.indigo,
-                  padding: EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                ),
+              CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
               ),
             ],
           ),

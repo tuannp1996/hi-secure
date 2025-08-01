@@ -54,10 +54,14 @@ class AuthService {
     try {
       final didAuthenticate = await auth.authenticate(
         localizedReason: 'Please authenticate to access Hi Secure',
-        options: const AuthenticationOptions(biometricOnly: true),
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
       );
       return didAuthenticate;
     } catch (e) {
+      print('Biometric authentication error: $e');
       return false;
     }
   }
@@ -74,27 +78,123 @@ class AuthService {
        final biometricAvailable = await isBiometricAvailable();
        final passcodeSet = await isPasscodeSet();
 
+       print('Auth debug - biometricEnabled: $biometricEnabled, biometricAvailable: $biometricAvailable, passcodeSet: $passcodeSet');
+
        // If no authentication is set up, return true (first time setup)
        if (!passcodeSet) {
+         print('Auth debug - no passcode set, returning true');
          return true;
+       }
+
+       // If biometric is available but not enabled, offer to set it up
+       if (biometricAvailable && !biometricEnabled) {
+         print('Auth debug - biometric available but not enabled, offering setup');
+         if (context.mounted) {
+           final setupSuccess = await _offerBiometricSetup(context);
+           if (setupSuccess) {
+             return true;
+           }
+         }
        }
 
        // Try biometric if enabled and available
        if (biometricEnabled && biometricAvailable) {
+         print('Auth debug - attempting biometric authentication');
          final biometricSuccess = await authenticateWithBiometric();
+         print('Auth debug - biometric result: $biometricSuccess');
          if (biometricSuccess) {
+           print('Auth debug - biometric successful, returning true');
            return true;
          }
        }
 
        // Fallback to passcode
        if (passcodeSet) {
-         return await _showPasscodeDialog(context);
+         print('Auth debug - falling back to passcode dialog');
+         // Check if context is still valid before showing dialog
+         if (context.mounted) {
+           return await _showPasscodeDialog(context);
+         } else {
+           print('Auth debug - context no longer mounted, returning false');
+           return false;
+         }
        }
 
+       print('Auth debug - no authentication method available, returning false');
        return false;
      } catch (e) {
+       print('Auth debug - error occurred: $e');
        // If any error occurs, return false
+       return false;
+     }
+   }
+
+   // New method for biometric-only authentication without context
+   Future<bool> authenticateBiometricOnly() async {
+     try {
+       final biometricEnabled = await isBiometricEnabled();
+       final biometricAvailable = await isBiometricAvailable();
+       
+       if (biometricEnabled && biometricAvailable) {
+         print('Auth debug - attempting biometric-only authentication');
+         final biometricSuccess = await authenticateWithBiometric();
+         print('Auth debug - biometric-only result: $biometricSuccess');
+         return biometricSuccess;
+       }
+       
+       return false;
+     } catch (e) {
+       print('Auth debug - biometric-only error: $e');
+       return false;
+     }
+   }
+
+   // Offer biometric setup to existing users
+   Future<bool> _offerBiometricSetup(BuildContext context) async {
+     try {
+       return await showDialog<bool>(
+         context: context,
+         barrierDismissible: false,
+         builder: (context) => AlertDialog(
+           title: Row(
+             children: [
+               Icon(Icons.fingerprint, color: Colors.indigo),
+               SizedBox(width: 8),
+               Text('Enable Biometric'),
+             ],
+           ),
+           content: Column(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               Text(
+                 'Would you like to enable biometric authentication for faster access?',
+                 style: TextStyle(fontSize: 14),
+               ),
+             ],
+           ),
+           actions: [
+             TextButton(
+               onPressed: () => Navigator.pop(context, false),
+               child: Text('Skip'),
+             ),
+             ElevatedButton(
+               onPressed: () async {
+                 Navigator.pop(context);
+                 final success = await _setupBiometric(context);
+                 if (success) {
+                   Navigator.pop(context, true);
+                 }
+               },
+               style: ElevatedButton.styleFrom(
+                 backgroundColor: Colors.indigo,
+                 foregroundColor: Colors.white,
+               ),
+               child: Text('Enable'),
+             ),
+           ],
+         ),
+       ) ?? false;
+     } catch (e) {
        return false;
      }
    }
@@ -152,19 +252,10 @@ class AuthService {
                  if (isValid) {
                    Navigator.pop(dialogContext, true);
                  } else {
-                   // Show error in the dialog context
-                   ScaffoldMessenger.of(dialogContext).showSnackBar(
-                     SnackBar(
-                       content: Row(
-                         children: [
-                           Icon(Icons.error, color: Colors.white),
-                           SizedBox(width: 8),
-                           Text('Incorrect passcode'),
-                         ],
-                       ),
-                       backgroundColor: Colors.red,
-                     ),
-                   );
+                   // Clear the passcode field and show error text instead of SnackBar
+                   passcodeController.clear();
+                   enteredPasscode = '';
+                   // The error will be handled by the calling code
                  }
                },
                style: ElevatedButton.styleFrom(
@@ -205,12 +296,10 @@ class AuthService {
                SizedBox(height: 16),
                ElevatedButton.icon(
                  onPressed: () async {
-                   if (context.mounted) {
-                     Navigator.pop(context);
-                     final success = await _setupBiometric(context);
-                     if (success && context.mounted) {
-                       Navigator.pop(context, true);
-                     }
+                   Navigator.pop(context);
+                   final success = await _setupBiometric(context);
+                   if (success) {
+                     Navigator.pop(context, true);
                    }
                  },
                  icon: Icon(Icons.fingerprint),
@@ -223,12 +312,10 @@ class AuthService {
                SizedBox(height: 8),
                ElevatedButton.icon(
                  onPressed: () async {
-                   if (context.mounted) {
-                     Navigator.pop(context);
-                     final success = await _setupPasscode(context);
-                     if (success && context.mounted) {
-                       Navigator.pop(context, true);
-                     }
+                   Navigator.pop(context);
+                   final success = await _setupPasscode(context);
+                   if (success) {
+                     Navigator.pop(context, true);
                    }
                  },
                  icon: Icon(Icons.lock),
@@ -252,41 +339,19 @@ class AuthService {
   Future<bool> _setupBiometric(BuildContext context) async {
     final biometricAvailable = await isBiometricAvailable();
     
-         if (!biometricAvailable) {
-       if (context.mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Biometric authentication is not available on this device'),
-             backgroundColor: Colors.orange,
-           ),
-         );
-       }
-       return false;
-     }
+    if (!biometricAvailable) {
+      // Don't show snackbar here, just return false
+      // The calling code can handle the UI feedback
+      return false;
+    }
 
-         final success = await authenticateWithBiometric();
-     if (success) {
-       await setBiometricEnabled(true);
-       if (context.mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Biometric authentication enabled'),
-             backgroundColor: Colors.green,
-           ),
-         );
-       }
-       return true;
-     } else {
-       if (context.mounted) {
-         ScaffoldMessenger.of(context).showSnackBar(
-           SnackBar(
-             content: Text('Biometric authentication failed'),
-             backgroundColor: Colors.red,
-           ),
-         );
-       }
-       return false;
-     }
+    final success = await authenticateWithBiometric();
+    if (success) {
+      await setBiometricEnabled(true);
+      return true;
+    } else {
+      return false;
+    }
   }
 
   // Setup passcode
@@ -350,51 +415,28 @@ class AuthService {
               final passcode = passcodeController.text;
               final confirmPasscode = confirmPasscodeController.text;
               
-                             if (passcode.length != 6) {
-                 if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(
-                       content: Text('Passcode must be 6 digits'),
-                       backgroundColor: Colors.red,
-                     ),
-                   );
-                 }
-                 return;
-               }
-               
-               if (passcode != confirmPasscode) {
-                 if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(
-                       content: Text('Passcodes do not match'),
-                       backgroundColor: Colors.red,
-                     ),
-                   );
-                 }
-                 return;
-               }
-               
-               final success = await createPasscode(passcode);
-               if (success) {
-                 if (context.mounted) {
-                   Navigator.pop(context, true);
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(
-                       content: Text('Passcode created successfully'),
-                       backgroundColor: Colors.green,
-                     ),
-                   );
-                 }
-               } else {
-                 if (context.mounted) {
-                   ScaffoldMessenger.of(context).showSnackBar(
-                     SnackBar(
-                       content: Text('Failed to create passcode'),
-                       backgroundColor: Colors.red,
-                     ),
-                   );
-                 }
-               }
+              if (passcode.length != 6) {
+                // Clear fields and return without showing error
+                passcodeController.clear();
+                confirmPasscodeController.clear();
+                return;
+              }
+              
+              if (passcode != confirmPasscode) {
+                // Clear fields and return without showing error
+                passcodeController.clear();
+                confirmPasscodeController.clear();
+                return;
+              }
+              
+              final success = await createPasscode(passcode);
+              if (success) {
+                Navigator.pop(context, true);
+              } else {
+                // Clear fields on failure
+                passcodeController.clear();
+                confirmPasscodeController.clear();
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.indigo,

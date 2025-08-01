@@ -49,7 +49,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
             ),
             SizedBox(height: 16),
             TextField(
@@ -61,7 +61,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
             ),
             SizedBox(height: 16),
             TextField(
@@ -73,7 +73,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
               obscureText: true,
               keyboardType: TextInputType.number,
-              maxLength: 4,
+              maxLength: 6,
             ),
           ],
         ),
@@ -130,23 +130,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       return;
     }
 
-    if (newPasscode.length != 4) {
+    if (newPasscode.length != 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Passcode must be 4 digits'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
-    // For demo purposes, check against default passcode
-    // In a real app, you would check against stored passcode
-    const defaultPasscode = "1234";
-    if (currentPasscode != defaultPasscode) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Current passcode is incorrect'),
+          content: Text('Passcode must be 6 digits'),
           backgroundColor: Colors.red,
         ),
       );
@@ -196,7 +183,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ListTile(
                   leading: Icon(Icons.lock, color: Colors.grey[600]),
                   title: Text('Change Passcode'),
-                  subtitle: Text('Update your 4-digit passcode'),
+                  subtitle: Text('Update your 6-digit passcode'),
                   trailing: Icon(Icons.arrow_forward_ios, size: 16),
                   onTap: _showChangePasscodeDialog,
                 ),

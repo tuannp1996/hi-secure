@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'package:device_apps/device_apps.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hi_secure/model/app.dart';
@@ -307,16 +308,38 @@ class _AccountListScreenState extends State<AccountListScreen> {
      return '$firstChar$middleStars$lastChar';
    }
 
-  Future<void> _openAppOrWebsite(App app) async {
-    final url = app.url;
-    if (url != null && await canLaunchUrl(Uri.parse(url))) {
-      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
-    } else {
+  Future<void> _openAppOrWebsite(App app, BuildContext context) async {
+    final packageName = app.packageName;
+    final rawUrl = app.url.trim();
+    final formattedUrl = rawUrl.startsWith(RegExp(r'https?://'))
+        ? rawUrl
+        : 'https://$rawUrl';
+    final url = Uri.parse(formattedUrl);
+
+    try {
+      if (packageName != null) {
+        final isInstalled = await DeviceApps.isAppInstalled(packageName);
+        if (isInstalled) {
+          await DeviceApps.openApp(packageName);
+          return;
+        }
+      }
+
+      if (await canLaunchUrl(url)) {
+        await launchUrl(url, mode: LaunchMode.externalApplication);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Không thể mở ${app.name}')),
+        );
+      }
+    } catch (e) {
+      debugPrint('Lỗi khi mở ${app.name}: $e');
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Không tìm thấy URL hoặc app để mở')),
+        SnackBar(content: Text('Đã xảy ra lỗi khi mở ${app.name}')),
       );
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -389,7 +412,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
                        return await _showDeleteDialog(entry.key, account.username);
                      } else {
                        // Open website action
-                       await _openAppOrWebsite(widget.app);
+                       await _openAppOrWebsite(widget.app, context);
                        return false; // Don't dismiss
                      }
                    },
