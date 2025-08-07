@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:hi_secure/model/app.dart';
 import 'package:hi_secure/service/app_service.dart';
@@ -49,77 +47,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     // Clean up any pending operations
     super.dispose();
-  }
-
-  void _showErrorDialog(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text('Thông báo'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(message),
-            SizedBox(height: 16),
-            Text(
-              'Lưu ý:',
-              style: TextStyle(fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 8),
-            Text('• Đảm bảo thiết bị có cảm biến vân tay/khuôn mặt'),
-            Text('• Đã thiết lập vân tay/khuôn mặt trong cài đặt thiết bị'),
-            Text('• Đã bật xác thực sinh trắc học trong ứng dụng'),
-            // if (_failCount >= 2) ...[ // This line is removed
-            //   SizedBox(height: 8),
-            //   Text(
-            //     'Sau 3 lần thất bại, ứng dụng sẽ tự động thoát.',
-            //     style: TextStyle(color: Colors.red),
-            //   ),
-            // ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('OK'),
-          )
-        ],
-      ),
-    );
-  }
-
-  // Platform-specific biometric test method
-  Future<void> _testFingerprintDirect() async {
-    try {
-      print('Home test - Testing platform-specific biometric...');
-      
-      // Store context reference before async operations
-      final currentContext = context;
-      
-      final result = await authService.authenticatePlatformBiometric(currentContext);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(currentContext).showSnackBar(
-          SnackBar(
-            content: Text(result ? 'Biometric authentication successful!' : 'Biometric authentication failed'),
-            backgroundColor: result ? Colors.green : Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    }
   }
 
   // Smart authentication method with platform-specific biometric

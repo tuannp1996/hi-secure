@@ -12,7 +12,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final currentPasscodeController = TextEditingController();
   final newPasscodeController = TextEditingController();
   final confirmPasscodeController = TextEditingController();
-  bool _isLoading = false;
   final authService = AuthService();
   bool _biometricEnabled = false;
   Map<String, dynamic> _biometricStatus = {};
@@ -70,28 +69,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
         duration: Duration(seconds: 3),
       ),
     );
-  }
-
-  Future<void> _testDirectBiometric() async {
-    try {
-      // Direct test without any app dialogs
-      print('Direct test - starting biometric authentication...');
-
-      final result = await authService.authenticateBiometricOnly();
-
-      if (mounted) {
-        _showTestResult(
-          result
-              ? 'Direct test successful!'
-              : 'Direct test failed - no dialog appeared',
-          result,
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        _showTestResult('Direct test error: $e', false);
-      }
-    }
   }
 
   @override
