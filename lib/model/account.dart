@@ -5,7 +5,7 @@ class Account {
 
   Account({required this.app, required this.username, required this.password});
 
-  Map<String, String> toJson() => {
+  Map<String, dynamic> toJson() => {
     'app': app,
     'username': username,
     'password': password,

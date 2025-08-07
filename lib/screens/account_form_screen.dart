@@ -2,15 +2,16 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hi_secure/model/account.dart';
+import 'package:hi_secure/service/account_service.dart';
 
 class AccountFormScreen extends StatefulWidget {
-  final String appName;
+  final String appId;
   final Account? account; // null for add, non-null for edit
   final String? accountKey; // needed for editing existing accounts
 
   const AccountFormScreen({
     super.key, 
-    required this.appName, 
+    required this.appId,
     this.account, 
     this.accountKey,
   });
@@ -52,26 +53,22 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
       if (isEditing) {
         // Update existing account
         final updatedAccount = Account(
-          app: widget.appName,
+          app: widget.appId,
           username: username,
           password: password,
         );
         
         // Use the existing key to update the account
-        await storage.write(
-          key: widget.accountKey!,
-          value: jsonEncode(updatedAccount.toJson()),
-        );
+        await AccountService.saveAccount(updatedAccount, key: widget.accountKey);
       } else {
         // Add new account
         final newAccount = Account(
-          app: widget.appName,
+          app: widget.appId,
           username: username,
           password: password,
         );
         
-        final key = 'account_${widget.appName}_${DateTime.now().millisecondsSinceEpoch}';
-        await storage.write(key: key, value: jsonEncode(newAccount.toJson()));
+        await AccountService.addAccount(newAccount);
       }
       
       if (mounted) {
@@ -115,6 +112,10 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
         title: Text(isEditing ? 'Edit Account' : 'Add Account'),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
         actions: isEditing ? [
           IconButton(
             icon: Icon(Icons.delete),
@@ -137,6 +138,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
                     children: [
                       TextFormField(
                         controller: usernameController,
+                        autofocus: true,
                         decoration: InputDecoration(
                           labelText: 'Username',
                           prefixIcon: Icon(Icons.person),
@@ -235,7 +237,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
 
   Future<void> _deleteAccount() async {
     try {
-      await storage.delete(key: widget.accountKey!);
+      await AccountService.deleteAccount(widget.accountKey!);
       if (mounted) {
         Navigator.pop(context, true); // Return true to indicate deletion
         ScaffoldMessenger.of(context).showSnackBar(

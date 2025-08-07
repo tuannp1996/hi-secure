@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hi_secure/l10n/app_localizations.dart';
 import 'package:hi_secure/model/app.dart';
 import 'package:hi_secure/service/app_service.dart';
 import 'package:hi_secure/service/auth_service.dart';
@@ -7,6 +8,10 @@ import 'package:hi_secure/screens/app_form_screen.dart';
 import 'package:hi_secure/screens/settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
+  final Function(Locale)? onLocaleChanged;
+  
+  const HomeScreen({Key? key, this.onLocaleChanged}) : super(key: key);
+
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
@@ -20,11 +25,25 @@ class _HomeScreenState extends State<HomeScreen> {
   // Remove _failCount since we're not doing automatic authentication
 
   Future<void> loadApps() async {
-    final _apps = await sharedStorage.getApps();
+    try {
+      // Initialize default apps if this is the first launch
+      await sharedStorage.initializeDefaultApps();
+      
+      final _apps = await sharedStorage.getApps();
 
-    setState(() {
-      this.apps = _apps.cast<App>();
-    });
+      if (mounted) {
+        setState(() {
+          this.apps = _apps.cast<App>();
+        });
+      }
+    } catch (e) {
+      print('Error loading apps: $e');
+      if (mounted) {
+        setState(() {
+          this.apps = [];
+        });
+      }
+    }
   }
 
   @override
@@ -54,10 +73,9 @@ class _HomeScreenState extends State<HomeScreen> {
     // Store context reference before async operations
     final currentContext = context;
     bool dialogClosed = false;
+    final l10n = AppLocalizations.of(context)!;
     
     try {
-      print('Home - Starting platform-specific authentication...');
-      
       // Show loading dialog
       showDialog(
         context: currentContext,
@@ -65,9 +83,9 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (dialogContext) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.security, color: Colors.indigo),
+              Icon(Icons.security, color: Colors.green),
               SizedBox(width: 8),
-              Text('Xác thực'),
+              Text(l10n.authentication),
             ],
           ),
           content: Column(
@@ -76,12 +94,12 @@ class _HomeScreenState extends State<HomeScreen> {
               CircularProgressIndicator(),
               SizedBox(height: 16),
               Text(
-                'Đang chuẩn bị xác thực...',
+                l10n.preparingAuthentication,
                 textAlign: TextAlign.center,
               ),
               SizedBox(height: 8),
               Text(
-                'Hệ thống sẽ tự động chọn phương thức xác thực phù hợp',
+                l10n.systemWillChoose,
                 style: TextStyle(fontSize: 12, color: Colors.grey),
                 textAlign: TextAlign.center,
               ),
@@ -91,7 +109,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       // Perform platform-specific authentication
-      final result = await authService.authenticatePlatformBiometric(currentContext);
+      final result = await authService.authenticatePlatformBiometric(currentContext) ?? false;
       
       // Close loading dialog safely
       if (mounted && !dialogClosed) {
@@ -110,7 +128,7 @@ class _HomeScreenState extends State<HomeScreen> {
           });
           ScaffoldMessenger.of(currentContext).showSnackBar(
             SnackBar(
-              content: Text('Xác thực thành công!'),
+              content: Text(l10n.authenticationSuccess),
               backgroundColor: Colors.green,
               duration: Duration(seconds: 2),
             ),
@@ -118,7 +136,7 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           ScaffoldMessenger.of(currentContext).showSnackBar(
             SnackBar(
-              content: Text('Xác thực thất bại hoặc chưa thiết lập'),
+              content: Text(l10n.authenticationFailed),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 3),
             ),
@@ -140,7 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
           SnackBar(
-            content: Text('Lỗi: $e'),
+            content: Text('${l10n.error}: $e'),
             backgroundColor: Colors.red,
             duration: Duration(seconds: 3),
           ),
@@ -157,10 +175,11 @@ class _HomeScreenState extends State<HomeScreen> {
     
     // Store context reference before async operations
     final currentContext = context;
+    final l10n = AppLocalizations.of(context)!;
     
     ScaffoldMessenger.of(currentContext).showSnackBar(
       SnackBar(
-        content: Text('Đã đăng xuất'),
+        content: Text(l10n.loggedOut),
         backgroundColor: Colors.orange,
         duration: Duration(seconds: 2),
       ),
@@ -190,6 +209,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    
     if (_isLoading) {
       return Scaffold(
         backgroundColor: Colors.green,
@@ -204,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SizedBox(height: 24),
               Text(
-                'Hi Secure',
+                l10n.appTitle,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -213,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SizedBox(height: 16),
               Text(
-                'Securing your passwords...',
+                l10n.securingPasswords,
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white70,
@@ -234,19 +255,20 @@ class _HomeScreenState extends State<HomeScreen> {
       return Scaffold(
         backgroundColor: Colors.green,
         appBar: AppBar(
-          title: Text('Hi Secure'),
+          title: Text(l10n.appTitle),
           backgroundColor: Colors.green,
           foregroundColor: Colors.white,
           actions: [
-            IconButton(
-              icon: Icon(Icons.settings),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => SettingsScreen()),
-                );
-              },
-            ),
+            if (_isAuthenticated)
+              IconButton(
+                icon: Icon(Icons.settings),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => SettingsScreen(onLocaleChanged: widget.onLocaleChanged)),
+                  );
+                },
+              ),
           ],
         ),
         body: Center(
@@ -262,7 +284,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ElevatedButton.icon(
                 onPressed: _authenticateSmart,
                 icon: Icon(Icons.security),
-                label: Text('Xác thực ngay'),
+                label: Text(l10n.authenticateNow),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.green.shade800,
@@ -271,7 +293,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               SizedBox(height: 16),
               Text(
-                'Nhấn nút xác thực để mở khóa ứng dụng',
+                l10n.pressToUnlock,
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.white60,
@@ -287,24 +309,25 @@ class _HomeScreenState extends State<HomeScreen> {
     // Show main app when authenticated
     return Scaffold(
       appBar: AppBar(
-        title: Text('Apps'),
+        title: Text(l10n.apps),
         backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: Icon(Icons.logout),
             onPressed: _logout,
-            tooltip: 'Logout',
+            tooltip: l10n.logout,
           ),
-          IconButton(
-            icon: Icon(Icons.settings),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => SettingsScreen()),
-              );
-            },
-          ),
+          if (_isAuthenticated)
+            IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SettingsScreen(onLocaleChanged: widget.onLocaleChanged)),
+                );
+              },
+            ),
         ],
       ),
       body: apps.isEmpty
@@ -319,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 16),
                   Text(
-                    'No apps yet',
+                    l10n.noAppsYet,
                     style: TextStyle(
                       fontSize: 18,
                       color: Colors.grey[600],
@@ -327,7 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   SizedBox(height: 8),
                   Text(
-                    'Tap the + button to add your first app',
+                    l10n.tapToAddFirst,
                     style: TextStyle(
                       color: Colors.grey[500],
                     ),
@@ -343,7 +366,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   margin: EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: Colors.indigo[100],
+                      backgroundColor: Colors.green[100],
                       child: Icon(
                         Icons.apps,
                         color: Colors.green[700],
@@ -353,11 +376,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       app.name,
                       style: TextStyle(fontWeight: FontWeight.w500),
                     ),
-                    subtitle: Text(app.url ?? 'No URL configured'),
+                    subtitle: Text(app.url ?? l10n.noUrlConfigured),
                     trailing: IconButton(
                       icon: Icon(Icons.edit, color: Colors.green[600]),
                       onPressed: () => _editApp(app),
-                      tooltip: 'Edit App',
+                      tooltip: l10n.editApp,
                     ),
                     onTap: () => _openAccounts(app),
                   ),
@@ -372,4 +395,4 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-} 
+}

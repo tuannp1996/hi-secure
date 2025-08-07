@@ -92,18 +92,7 @@ class AuthService {
         return false;
       }
 
-      print('Auth debug - starting biometric authentication...');
-      print(
-        'Auth debug - calling auth.authenticate() with localizedReason: "Vui lòng xác thực để truy cập Hi Secure"',
-      );
-
-      final didAuthenticate = await auth.authenticate(
-        localizedReason: 'Vui lòng xác thực để truy cập Hi Secure',
-        options: const AuthenticationOptions(
-          biometricOnly: true,
-          stickyAuth: true,
-        ),
-      );
+      final didAuthenticate = await auth.authenticate(localizedReason: 'Vui lòng xác thực để truy cập Hi Secure', options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true,));
 
       print('Auth debug - authentication result: $didAuthenticate');
       return didAuthenticate;
@@ -281,6 +270,12 @@ class AuthService {
   // Offer biometric setup to existing users
   Future<bool> _offerBiometricSetup(BuildContext context) async {
     try {
+      // Check if context is still valid before showing dialog
+      if (!context.mounted) {
+        print('Offer biometric setup - context is no longer mounted, skipping');
+        return false;
+      }
+      
       return await showDialog<bool>(
             context: context,
             barrierDismissible: false,
@@ -308,10 +303,16 @@ class AuthService {
                 ),
                 ElevatedButton(
                   onPressed: () async {
-                    Navigator.pop(context);
-                    final success = await _setupBiometric(context);
-                    if (success) {
-                      Navigator.pop(context, true);
+                    try {
+                      final success = await _setupBiometric(context);
+                      if (success) {
+                        Navigator.pop(context, true);
+                      } else {
+                        Navigator.pop(context, false);
+                      }
+                    } catch (e) {
+                      print('Error during biometric setup: $e');
+                      Navigator.pop(context, false);
                     }
                   },
                   style: ElevatedButton.styleFrom(
@@ -385,7 +386,14 @@ class AuthService {
                       Navigator.pop(dialogContext, true);
 
                       // After successful passcode authentication, offer biometric
-                      await _offerBiometricAfterPasscodeAuth(context);
+                      // Check if context is still valid before proceeding
+                      if (context.mounted) {
+                        try {
+                          await _offerBiometricAfterPasscodeAuth(context);
+                        } catch (e) {
+                          print('Error offering biometric after passcode auth: $e');
+                        }
+                      }
                     } else {
                       // Clear the passcode field and show error text instead of SnackBar
                       passcodeController.clear();
@@ -432,10 +440,16 @@ class AuthService {
                   SizedBox(height: 16),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      Navigator.pop(context);
-                      final success = await _setupBiometric(context);
-                      if (success) {
-                        Navigator.pop(context, true);
+                      try {
+                        final success = await _setupBiometric(context);
+                        if (success) {
+                          Navigator.pop(context, true);
+                        } else {
+                          Navigator.pop(context, false);
+                        }
+                      } catch (e) {
+                        print('Error during biometric setup in setup dialog: $e');
+                        Navigator.pop(context, false);
                       }
                     },
                     icon: Icon(Icons.fingerprint),
@@ -448,13 +462,19 @@ class AuthService {
                   SizedBox(height: 8),
                   ElevatedButton.icon(
                     onPressed: () async {
-                      Navigator.pop(context);
-                      final success = await showPasscodeDialog(
-                        context,
-                        isSetup: true,
-                      );
-                      if (success) {
-                        Navigator.pop(context, true);
+                      try {
+                        final success = await showPasscodeDialog(
+                          context,
+                          isSetup: true,
+                        );
+                        if (success) {
+                          Navigator.pop(context, true);
+                        } else {
+                          Navigator.pop(context, false);
+                        }
+                      } catch (e) {
+                        print('Error during passcode setup in setup dialog: $e');
+                        Navigator.pop(context, false);
                       }
                     },
                     icon: Icon(Icons.lock),
@@ -477,19 +497,24 @@ class AuthService {
 
   // Setup biometric authentication
   Future<bool> _setupBiometric(BuildContext context) async {
-    final biometricAvailable = await isBiometricAvailable();
+    try {
+      final biometricAvailable = await isBiometricAvailable();
 
-    if (!biometricAvailable) {
-      // Don't show snackbar here, just return false
-      // The calling code can handle the UI feedback
-      return false;
-    }
+      if (!biometricAvailable) {
+        // Don't show snackbar here, just return false
+        // The calling code can handle the UI feedback
+        return false;
+      }
 
-    final success = await authenticateWithBiometric();
-    if (success) {
-      await setBiometricEnabled(true);
-      return true;
-    } else {
+      final success = await authenticateWithBiometric();
+      if (success) {
+        await setBiometricEnabled(true);
+        return true;
+      } else {
+        return false;
+      }
+    } catch (e) {
+      print('Error in _setupBiometric: $e');
       return false;
     }
   }
@@ -501,6 +526,12 @@ class AuthService {
   // Offer biometric setup after successful passcode authentication
   Future<void> _offerBiometricAfterPasscodeAuth(BuildContext context) async {
     try {
+      // Check if context is still valid
+      if (!context.mounted) {
+        print('Offer biometric - context is no longer mounted, skipping');
+        return;
+      }
+      
       print(
         'Offer biometric - starting offer after passcode authentication...',
       );
@@ -522,6 +553,12 @@ class AuthService {
       }
 
       print('Offer biometric - showing biometric offer dialog...');
+
+      // Check if context is still valid before showing dialog
+      if (!context.mounted) {
+        print('Offer biometric - context is no longer mounted, skipping dialog');
+        return;
+      }
 
       // Show biometric offer dialog
       final shouldEnable =
@@ -584,12 +621,22 @@ class AuthService {
       print('Offer biometric - user choice: $shouldEnable');
 
       if (shouldEnable) {
+        // Check if context is still valid before biometric setup
+        if (!context.mounted) {
+          print('Offer biometric - context is no longer mounted, skipping biometric setup');
+          return;
+        }
+        
         // Proceed with biometric setup
-        final biometricSuccess = await _setupBiometric(context);
-        if (biometricSuccess) {
-          print('Offer biometric - biometric enabled successfully');
-        } else {
-          print('Offer biometric - biometric setup failed');
+        try {
+          final biometricSuccess = await _setupBiometric(context);
+          if (biometricSuccess) {
+            print('Offer biometric - biometric enabled successfully');
+          } else {
+            print('Offer biometric - biometric setup failed');
+          }
+        } catch (e) {
+          print('Offer biometric - error during biometric setup: $e');
         }
       } else {
         print('Offer biometric - user chose to skip');
@@ -1124,7 +1171,14 @@ class AuthService {
                               final success = await createPasscode(newPasscode);
                               if (success) {
                                 Navigator.pop(context, true);
-                                await _offerBiometricAfterPasscodeAuth(context);
+                                // Check if context is still valid before proceeding
+                                if (context.mounted) {
+                                  try {
+                                    await _offerBiometricAfterPasscodeAuth(context);
+                                  } catch (e) {
+                                    print('Error offering biometric after passcode setup: $e');
+                                  }
+                                }
                               } else {
                                 newPasscodeController.clear();
                                 confirmPasscodeController.clear();
@@ -1154,7 +1208,14 @@ class AuthService {
                               final success = await createPasscode(newPasscode);
                               if (success) {
                                 Navigator.pop(context, true);
-                                await _offerBiometricAfterPasscodeAuth(context);
+                                // Check if context is still valid before proceeding
+                                if (context.mounted) {
+                                  try {
+                                    await _offerBiometricAfterPasscodeAuth(context);
+                                  } catch (e) {
+                                    print('Error offering biometric after passcode change: $e');
+                                  }
+                                }
                               } else {
                                 currentPasscodeController.clear();
                                 newPasscodeController.clear();
