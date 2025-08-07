@@ -26,18 +26,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _loadSettings() async {
     final enabled = await authService.isBiometricEnabled();
     final status = await authService.getBiometricStatus();
+    final passcodeSet = await authService.isPasscodeSet();
     
     setState(() {
       _biometricEnabled = enabled;
       _biometricStatus = status;
+      // Add passcode status to the map for display
+      _biometricStatus['passcodeSet'] = passcodeSet;
     });
   }
 
   Future<void> _toggleBiometric(bool value) async {
-    await authService.setBiometricEnabled(value);
-    setState(() {
-      _biometricEnabled = value;
-    });
+    if (value) {
+      // Enable biometric
+      final success = await authService.enableBiometricAfterPasscode(context);
+      if (success) {
+        setState(() {
+          _biometricEnabled = true;
+        });
+        _showTestResult('Biometric enabled successfully!', true);
+      } else {
+        _showTestResult('Failed to enable biometric', false);
+      }
+    } else {
+      // Disable biometric
+      await authService.disableBiometric();
+      setState(() {
+        _biometricEnabled = false;
+      });
+      _showTestResult('Biometric disabled', null);
+    }
   }
 
   Future<void> _testBiometric() async {
@@ -378,72 +396,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
               ],
-            ),
-          ),
-          SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Debug Information',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                  ),
-                  SizedBox(height: 8),
-                  Text('Can Check Biometrics: ${_biometricStatus['canCheckBiometrics'] ?? 'Unknown'}'),
-                  Text('Device Supported: ${_biometricStatus['isDeviceSupported'] ?? 'Unknown'}'),
-                  Text('Available Biometrics: ${_biometricStatus['availableBiometrics'] ?? []}'),
-                  if (_biometricStatus['error'] != null)
-                    Text('Error: ${_biometricStatus['error']}', style: TextStyle(color: Colors.red)),
-                  SizedBox(height: 16),
-                  ElevatedButton(
-                    onPressed: _testBiometric,
-                    child: Text('Test Biometric Authentication'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _testDirectBiometric,
-                    child: Text('Direct Biometric Test'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _testSimpleBiometric,
-                    child: Text('Simple Biometric Test'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.purple,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _testDirectFingerprint,
-                    child: Text('Direct Fingerprint Test'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 8),
-                  ElevatedButton(
-                    onPressed: _testSmartAuth,
-                    child: Text('Smart Authentication Test'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.teal,
-                      foregroundColor: Colors.white,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ),
           SizedBox(height: 16),

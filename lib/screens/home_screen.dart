@@ -98,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
       // Store context reference before async operations
       final currentContext = context;
       
-      final result = await authService.authenticatePlatformBiometric();
+      final result = await authService.authenticatePlatformBiometric(currentContext);
       
       if (mounted) {
         ScaffoldMessenger.of(currentContext).showSnackBar(
@@ -164,7 +164,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
       // Perform platform-specific authentication
-      final result = await authService.authenticatePlatformBiometric();
+      final result = await authService.authenticatePlatformBiometric(currentContext);
       
       // Close loading dialog safely
       if (mounted && !dialogClosed) {
@@ -191,9 +191,9 @@ class _HomeScreenState extends State<HomeScreen> {
         } else {
           ScaffoldMessenger.of(currentContext).showSnackBar(
             SnackBar(
-              content: Text('Xác thực thất bại'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 2),
+              content: Text('Xác thực thất bại hoặc chưa thiết lập'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 3),
             ),
           );
         }

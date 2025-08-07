@@ -268,7 +268,7 @@ class AuthService {
          builder: (context) => AlertDialog(
            title: Row(
              children: [
-               Icon(Icons.fingerprint, color: Colors.indigo),
+               Icon(Icons.fingerprint, color: Colors.green),
                SizedBox(width: 8),
                Text('Enable Biometric'),
              ],
@@ -296,7 +296,7 @@ class AuthService {
                  }
                },
                style: ElevatedButton.styleFrom(
-                 backgroundColor: Colors.indigo,
+                 backgroundColor: Colors.green,
                  foregroundColor: Colors.white,
                ),
                child: Text('Enable'),
@@ -321,7 +321,7 @@ class AuthService {
          builder: (dialogContext) => AlertDialog(
            title: Row(
              children: [
-               Icon(Icons.lock, color: Colors.indigo),
+               Icon(Icons.lock, color: Colors.green),
                SizedBox(width: 8),
                Text('Enter Passcode'),
              ],
@@ -361,6 +361,9 @@ class AuthService {
                  final isValid = await authenticateWithPasscode(enteredPasscode);
                  if (isValid) {
                    Navigator.pop(dialogContext, true);
+                   
+                   // After successful passcode authentication, offer biometric
+                   await _offerBiometricAfterPasscodeAuth(context);
                  } else {
                    // Clear the passcode field and show error text instead of SnackBar
                    passcodeController.clear();
@@ -369,7 +372,7 @@ class AuthService {
                  }
                },
                style: ElevatedButton.styleFrom(
-                 backgroundColor: Colors.indigo,
+                 backgroundColor: Colors.green,
                  foregroundColor: Colors.white,
                ),
                child: Text('Verify'),
@@ -391,7 +394,7 @@ class AuthService {
          builder: (context) => AlertDialog(
            title: Row(
              children: [
-               Icon(Icons.security, color: Colors.indigo),
+               Icon(Icons.security, color: Colors.green),
                SizedBox(width: 8),
                Text('Setup Security'),
              ],
@@ -415,7 +418,7 @@ class AuthService {
                  icon: Icon(Icons.fingerprint),
                  label: Text('Setup Biometric'),
                  style: ElevatedButton.styleFrom(
-                   backgroundColor: Colors.indigo,
+                   backgroundColor: Colors.green,
                    foregroundColor: Colors.white,
                  ),
                ),
@@ -475,7 +478,7 @@ class AuthService {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.lock, color: Colors.indigo),
+            Icon(Icons.lock, color: Colors.green),
             SizedBox(width: 8),
             Text('Create Passcode'),
           ],
@@ -487,7 +490,7 @@ class AuthService {
               'Create a 6-digit passcode for security',
               style: TextStyle(fontSize: 14),
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 14),
             TextField(
               controller: passcodeController,
               decoration: InputDecoration(
@@ -500,7 +503,7 @@ class AuthService {
               keyboardType: TextInputType.number,
               maxLength: 6,
             ),
-            SizedBox(height: 16),
+            SizedBox(height: 14),
             TextField(
               controller: confirmPasscodeController,
               decoration: InputDecoration(
@@ -542,6 +545,8 @@ class AuthService {
               final success = await createPasscode(passcode);
               if (success) {
                 Navigator.pop(context, true);
+                // After successful passcode authentication, offer biometric
+                await _offerBiometricAfterPasscodeAuth(context);
               } else {
                 // Clear fields on failure
                 passcodeController.clear();
@@ -549,7 +554,7 @@ class AuthService {
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
             child: Text('Create'),
@@ -557,6 +562,103 @@ class AuthService {
         ],
       ),
     ) ?? false;
+  }
+
+  // Removed: _offerBiometricAfterPasscode - no longer used
+
+  // Offer biometric setup after successful passcode authentication
+  Future<void> _offerBiometricAfterPasscodeAuth(BuildContext context) async {
+    try {
+      print('Offer biometric - starting offer after passcode authentication...');
+      
+      // Check if biometric is available
+      final biometricAvailable = await isBiometricAvailable();
+      print('Offer biometric - biometric available: $biometricAvailable');
+      if (!biometricAvailable) {
+        print('Offer biometric - biometric not available on device');
+        return;
+      }
+      
+      // Check if biometric is already enabled
+      final biometricEnabled = await isBiometricEnabled();
+      print('Offer biometric - biometric enabled: $biometricEnabled');
+      if (biometricEnabled) {
+        print('Offer biometric - biometric already enabled, skipping offer');
+        return;
+      }
+      
+      print('Offer biometric - showing biometric offer dialog...');
+      
+      // Show biometric offer dialog
+      final shouldEnable = await showDialog<bool>(
+        context: context,
+        barrierDismissible: true,
+        builder: (context) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.fingerprint, color: Colors.indigo),
+              SizedBox(width: 8),
+              Text('Enable Biometric?'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Authentication successful!',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Would you like to enable biometric authentication (fingerprint/face) for faster access next time?',
+                  style: TextStyle(fontSize: 14),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'You can always enable or disable this later in Settings.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text('Skip'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.indigo,
+                foregroundColor: Colors.white,
+              ),
+              child: Text('Enable'),
+            ),
+          ],
+        ),
+      ) ?? false;
+      
+      print('Offer biometric - user choice: $shouldEnable');
+      
+      if (shouldEnable) {
+        // Proceed with biometric setup
+        final biometricSuccess = await _setupBiometric(context);
+        if (biometricSuccess) {
+          print('Offer biometric - biometric enabled successfully');
+        } else {
+          print('Offer biometric - biometric setup failed');
+        }
+      } else {
+        print('Offer biometric - user chose to skip');
+      }
+      
+    } catch (e) {
+      print('Offer biometric - error: $e');
+    }
   }
 
   // Simple test method for biometric authentication
@@ -652,16 +754,25 @@ class AuthService {
     }
   }
 
-  // Platform-specific biometric authentication
-  Future<bool> authenticatePlatformBiometric() async {
+  // Platform-specific biometric authentication with passcode fallback
+  Future<bool> authenticatePlatformBiometric(BuildContext context) async {
     try {
       print('Platform auth - starting platform-specific biometric authentication...');
       
-      // Check if biometric is available
+      // Check if authentication is set up
+      final isSetUp = await isAuthenticationSetUp();
+      if (!isSetUp) {
+        print('Platform auth - no authentication set up, starting first-time setup');
+        return await handleFirstTimeSetup(context);
+      }
+      
+      // Check if biometric is available and enabled
       final isAvailable = await isBiometricAvailable();
-      if (!isAvailable) {
-        print('Platform auth - biometric not available');
-        return false;
+      final biometricEnabled = await isBiometricEnabled();
+      
+      if (!isAvailable || !biometricEnabled) {
+        print('Platform auth - biometric not available or disabled, using passcode');
+        return await _showPasscodeDialog(context);
       }
 
       // Get available biometrics
@@ -669,8 +780,8 @@ class AuthService {
       print('Platform auth - available biometrics: $availableBiometrics');
 
       if (availableBiometrics.isEmpty) {
-        print('Platform auth - no biometrics available');
-        return false;
+        print('Platform auth - no biometrics available, falling back to passcode');
+        return await _showPasscodeDialog(context);
       }
 
       // Platform-specific logic
@@ -678,38 +789,73 @@ class AuthService {
         // Android: try to use any available biometric
         if (availableBiometrics.contains(BiometricType.fingerprint)) {
           print('Platform auth - Android: using fingerprint');
-          return await _authenticateWithFingerprint();
+          final result = await _authenticateWithFingerprint();
+          if (!result) {
+            print('Platform auth - fingerprint failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         } else if (availableBiometrics.contains(BiometricType.face)) {
           print('Platform auth - Android: using face');
-          return await _authenticateWithFace();
+          final result = await _authenticateWithFace();
+          if (!result) {
+            print('Platform auth - face failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         } else if (availableBiometrics.contains(BiometricType.strong)) {
           print('Platform auth - Android: using strong biometric');
-          return await _authenticateWithStrong();
+          final result = await _authenticateWithStrong();
+          if (!result) {
+            print('Platform auth - strong biometric failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         } else if (availableBiometrics.contains(BiometricType.weak)) {
           print('Platform auth - Android: using weak biometric');
-          return await _authenticateWithWeak();
+          final result = await _authenticateWithWeak();
+          if (!result) {
+            print('Platform auth - weak biometric failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         }
       } else if (Platform.isIOS) {
         // iOS: prefer face, fallback to fingerprint
         if (availableBiometrics.contains(BiometricType.face)) {
           print('Platform auth - iOS: using face');
-          return await _authenticateWithFace();
+          final result = await _authenticateWithFace();
+          if (!result) {
+            print('Platform auth - face failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         } else if (availableBiometrics.contains(BiometricType.fingerprint)) {
           print('Platform auth - iOS: using fingerprint (face not available)');
-          return await _authenticateWithFingerprint();
+          final result = await _authenticateWithFingerprint();
+          if (!result) {
+            print('Platform auth - fingerprint failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         } else if (availableBiometrics.contains(BiometricType.strong)) {
           print('Platform auth - iOS: using strong biometric');
-          return await _authenticateWithStrong();
+          final result = await _authenticateWithStrong();
+          if (!result) {
+            print('Platform auth - strong biometric failed, falling back to passcode');
+            return await _showPasscodeDialog(context);
+          }
+          return result;
         }
       }
 
-      print('Platform auth - no suitable biometric found');
-      return false;
+      print('Platform auth - no suitable biometric found, falling back to passcode');
+      return await _showPasscodeDialog(context);
       
     } catch (e) {
       print('Platform auth - error: $e');
       print('Platform auth - error type: ${e.runtimeType}');
-      return false;
+      return await _showPasscodeDialog(context);
     }
   }
 
@@ -794,6 +940,81 @@ class AuthService {
     } catch (e) {
       print('Weak auth - error: $e');
       return false;
+    }
+  }
+
+  // Check if any authentication is set up
+  Future<bool> isAuthenticationSetUp() async {
+    final biometricEnabled = await isBiometricEnabled();
+    final passcodeSet = await isPasscodeSet();
+    return biometricEnabled || passcodeSet;
+  }
+
+  // Handle first-time setup
+  Future<bool> handleFirstTimeSetup(BuildContext context) async {
+    try {
+      print('First time setup - starting setup process...');
+      
+      // Only set up passcode for first time - no biometric offer
+      print('First time setup - setting up passcode only');
+      final passcodeSuccess = await _setupPasscode(context);
+      if (passcodeSuccess) {
+        print('First time setup - passcode setup successful');
+        return true;
+      }
+      
+      print('First time setup - passcode setup failed');
+      return false;
+      
+    } catch (e) {
+      print('First time setup - error: $e');
+      return false;
+    }
+  }
+
+  // Enable biometric after passcode is set up
+  Future<bool> enableBiometricAfterPasscode(BuildContext context) async {
+    try {
+      print('Enable biometric - checking if passcode is set up...');
+      
+      // Check if passcode is set up
+      final passcodeSet = await isPasscodeSet();
+      if (!passcodeSet) {
+        print('Enable biometric - no passcode set up, cannot enable biometric');
+        return false;
+      }
+      
+      // Check if biometric is available
+      final biometricAvailable = await isBiometricAvailable();
+      if (!biometricAvailable) {
+        print('Enable biometric - biometric not available on device');
+        return false;
+      }
+      
+      // Offer biometric setup
+      final biometricSuccess = await _offerBiometricSetup(context);
+      if (biometricSuccess) {
+        print('Enable biometric - biometric enabled successfully');
+        return true;
+      }
+      
+      print('Enable biometric - biometric setup failed or cancelled');
+      return false;
+      
+    } catch (e) {
+      print('Enable biometric - error: $e');
+      return false;
+    }
+  }
+
+  // Disable biometric (keep passcode)
+  Future<void> disableBiometric() async {
+    try {
+      print('Disable biometric - disabling biometric authentication...');
+      await setBiometricEnabled(false);
+      print('Disable biometric - biometric disabled successfully');
+    } catch (e) {
+      print('Disable biometric - error: $e');
     }
   }
 } 
