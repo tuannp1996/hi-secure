@@ -113,7 +113,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'Edit Account' : 'Add Account'),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: isEditing ? [
           IconButton(
@@ -173,7 +173,7 @@ class _AccountFormScreenState extends State<AccountFormScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),

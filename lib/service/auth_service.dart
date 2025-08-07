@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:local_auth/local_auth.dart';
+import 'dart:io' show Platform;
 
 class AuthService {
   static const _passcodeKey = 'user_passcode';
@@ -44,25 +45,89 @@ class AuthService {
 
   // Check if biometric is available
   Future<bool> isBiometricAvailable() async {
-    bool canCheckBiometrics = await auth.canCheckBiometrics;
-    bool isSupported = await auth.isDeviceSupported();
-    return canCheckBiometrics && isSupported;
+    try {
+      bool canCheckBiometrics = await auth.canCheckBiometrics;
+      bool isSupported = await auth.isDeviceSupported();
+      
+      print('Auth debug - canCheckBiometrics: $canCheckBiometrics, isSupported: $isSupported');
+      
+      // Get available biometrics for more detailed debugging
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      print('Auth debug - available biometrics: $availableBiometrics');
+      
+      return canCheckBiometrics && isSupported;
+    } catch (e) {
+      print('Auth debug - error checking biometric availability: $e');
+      return false;
+    }
   }
 
   // Authenticate with biometric
   Future<bool> authenticateWithBiometric() async {
     try {
+      print('Auth debug - starting authenticateWithBiometric()');
+      
+      // First check if biometric is available
+      final isAvailable = await isBiometricAvailable();
+      print('Auth debug - biometric available: $isAvailable');
+      
+      if (!isAvailable) {
+        print('Auth debug - biometric not available');
+        return false;
+      }
+
+      // Get available biometrics to determine the best authentication method
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      print('Auth debug - attempting authentication with available biometrics: $availableBiometrics');
+
+      // Check if we have any biometrics available
+      if (availableBiometrics.isEmpty) {
+        print('Auth debug - no biometrics available');
+        return false;
+      }
+
+      print('Auth debug - starting biometric authentication...');
+      print('Auth debug - calling auth.authenticate() with localizedReason: "Vui lòng xác thực để truy cập Hi Secure"');
+      
       final didAuthenticate = await auth.authenticate(
-        localizedReason: 'Please authenticate to access Hi Secure',
+        localizedReason: 'Vui lòng xác thực để truy cập Hi Secure',
         options: const AuthenticationOptions(
           biometricOnly: true,
           stickyAuth: true,
         ),
       );
+      
+      print('Auth debug - authentication result: $didAuthenticate');
       return didAuthenticate;
     } catch (e) {
-      print('Biometric authentication error: $e');
+      print('Auth debug - biometric authentication error: $e');
+      print('Auth debug - error type: ${e.runtimeType}');
       return false;
+    }
+  }
+
+  // New method to get detailed biometric status
+  Future<Map<String, dynamic>> getBiometricStatus() async {
+    try {
+      bool canCheckBiometrics = await auth.canCheckBiometrics;
+      bool isSupported = await auth.isDeviceSupported();
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      
+      return {
+        'canCheckBiometrics': canCheckBiometrics,
+        'isDeviceSupported': isSupported,
+        'availableBiometrics': availableBiometrics.map((e) => e.toString()).toList(),
+        'hasFingerprint': availableBiometrics.contains(BiometricType.fingerprint),
+        'hasFace': availableBiometrics.contains(BiometricType.face),
+        'hasIris': availableBiometrics.contains(BiometricType.iris),
+      };
+    } catch (e) {
+      return {
+        'error': e.toString(),
+        'canCheckBiometrics': false,
+        'isDeviceSupported': false,
+        'availableBiometrics': [],
+      };
     }
   }
 
@@ -148,6 +213,51 @@ class AuthService {
        return false;
      }
    }
+
+   // Direct biometric authentication - simplified version
+  Future<bool> authenticateBiometricDirect() async {
+    try {
+      print('Direct auth - starting direct biometric authentication...');
+      
+      // Basic checks
+      bool isSupported = await auth.isDeviceSupported();
+      bool canCheckBiometrics = await auth.canCheckBiometrics;
+      
+      print('Direct auth - Device supported: $isSupported, Can check biometrics: $canCheckBiometrics');
+      
+      if (!isSupported || !canCheckBiometrics) {
+        print('Direct auth - Device does not support biometric authentication');
+        return false;
+      }
+      
+      // Get available biometrics
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      print('Direct auth - Available biometrics: $availableBiometrics');
+      
+      if (availableBiometrics.isEmpty) {
+        print('Direct auth - No biometrics available');
+        return false;
+      }
+      
+      // Direct authentication call - this should trigger the system dialog
+      print('Direct auth - Calling auth.authenticate()...');
+      
+      final result = await auth.authenticate(
+        localizedReason: 'Touch fingerprint sensor to unlock',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: false, // Changed to false to ensure dialog appears
+        ),
+      );
+      
+      print('Direct auth - Authentication result: $result');
+      return result;
+      
+    } catch (e) {
+      print('Direct auth - Error: $e');
+      return false;
+    }
+  }
 
    // Offer biometric setup to existing users
    Future<bool> _offerBiometricSetup(BuildContext context) async {
@@ -447,5 +557,243 @@ class AuthService {
         ],
       ),
     ) ?? false;
+  }
+
+  // Simple test method for biometric authentication
+  Future<bool> testBiometricAuthentication() async {
+    try {
+      print('Test - Starting simple biometric test...');
+      
+      // Check if device supports biometric
+      bool isSupported = await auth.isDeviceSupported();
+      print('Test - Device supported: $isSupported');
+      
+      if (!isSupported) {
+        print('Test - Device does not support biometric authentication');
+        return false;
+      }
+      
+      // Check if biometric is available
+      bool canCheckBiometrics = await auth.canCheckBiometrics;
+      print('Test - Can check biometrics: $canCheckBiometrics');
+      
+      if (!canCheckBiometrics) {
+        print('Test - Cannot check biometrics');
+        return false;
+      }
+      
+      // Get available biometrics
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      print('Test - Available biometrics: $availableBiometrics');
+      
+      if (availableBiometrics.isEmpty) {
+        print('Test - No biometrics available');
+        return false;
+      }
+      
+      // Attempt authentication
+      print('Test - Attempting authentication...');
+      final result = await auth.authenticate(
+        localizedReason: 'Test biometric authentication',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: true,
+        ),
+      );
+      
+      print('Test - Authentication result: $result');
+      return result;
+      
+    } catch (e) {
+      print('Test - Error during biometric test: $e');
+      return false;
+    }
+  }
+
+  // Smart authentication - automatically chooses biometric or passcode
+  Future<bool> authenticateSmart(BuildContext context) async {
+    try {
+      print('Smart auth - starting smart authentication...');
+      
+      // Check if biometric is enabled and available
+      final biometricEnabled = await isBiometricEnabled();
+      final biometricAvailable = await isBiometricAvailable();
+      
+      print('Smart auth - biometric enabled: $biometricEnabled, available: $biometricAvailable');
+      
+      // If biometric is available and enabled, try it first
+      if (biometricEnabled && biometricAvailable) {
+        print('Smart auth - attempting biometric authentication...');
+        final biometricResult = await authenticateBiometricDirect();
+        
+        if (biometricResult) {
+          print('Smart auth - biometric successful');
+          return true;
+        } else {
+          print('Smart auth - biometric failed, falling back to passcode');
+        }
+      }
+      
+      // Fallback to passcode if biometric fails or is not available
+      final passcodeSet = await isPasscodeSet();
+      if (passcodeSet) {
+        print('Smart auth - attempting passcode authentication...');
+        if (context.mounted) {
+          return await _showPasscodeDialog(context);
+        }
+      }
+      
+      print('Smart auth - no authentication method available');
+      return false;
+      
+    } catch (e) {
+      print('Smart auth - error: $e');
+      return false;
+    }
+  }
+
+  // Platform-specific biometric authentication
+  Future<bool> authenticatePlatformBiometric() async {
+    try {
+      print('Platform auth - starting platform-specific biometric authentication...');
+      
+      // Check if biometric is available
+      final isAvailable = await isBiometricAvailable();
+      if (!isAvailable) {
+        print('Platform auth - biometric not available');
+        return false;
+      }
+
+      // Get available biometrics
+      List<BiometricType> availableBiometrics = await auth.getAvailableBiometrics();
+      print('Platform auth - available biometrics: $availableBiometrics');
+
+      if (availableBiometrics.isEmpty) {
+        print('Platform auth - no biometrics available');
+        return false;
+      }
+
+      // Platform-specific logic
+      if (Platform.isAndroid) {
+        // Android: try to use any available biometric
+        if (availableBiometrics.contains(BiometricType.fingerprint)) {
+          print('Platform auth - Android: using fingerprint');
+          return await _authenticateWithFingerprint();
+        } else if (availableBiometrics.contains(BiometricType.face)) {
+          print('Platform auth - Android: using face');
+          return await _authenticateWithFace();
+        } else if (availableBiometrics.contains(BiometricType.strong)) {
+          print('Platform auth - Android: using strong biometric');
+          return await _authenticateWithStrong();
+        } else if (availableBiometrics.contains(BiometricType.weak)) {
+          print('Platform auth - Android: using weak biometric');
+          return await _authenticateWithWeak();
+        }
+      } else if (Platform.isIOS) {
+        // iOS: prefer face, fallback to fingerprint
+        if (availableBiometrics.contains(BiometricType.face)) {
+          print('Platform auth - iOS: using face');
+          return await _authenticateWithFace();
+        } else if (availableBiometrics.contains(BiometricType.fingerprint)) {
+          print('Platform auth - iOS: using fingerprint (face not available)');
+          return await _authenticateWithFingerprint();
+        } else if (availableBiometrics.contains(BiometricType.strong)) {
+          print('Platform auth - iOS: using strong biometric');
+          return await _authenticateWithStrong();
+        }
+      }
+
+      print('Platform auth - no suitable biometric found');
+      return false;
+      
+    } catch (e) {
+      print('Platform auth - error: $e');
+      print('Platform auth - error type: ${e.runtimeType}');
+      return false;
+    }
+  }
+
+  // Authenticate with fingerprint specifically
+  Future<bool> _authenticateWithFingerprint() async {
+    try {
+      print('Fingerprint auth - starting fingerprint authentication...');
+      
+      final result = await auth.authenticate(
+        localizedReason: 'Touch fingerprint sensor to unlock',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: false,
+        ),
+      );
+      
+      print('Fingerprint auth - result: $result');
+      return result;
+    } catch (e) {
+      print('Fingerprint auth - error: $e');
+      return false;
+    }
+  }
+
+  // Authenticate with face specifically
+  Future<bool> _authenticateWithFace() async {
+    try {
+      print('Face auth - starting face authentication...');
+      
+      final result = await auth.authenticate(
+        localizedReason: 'Look at the camera to unlock',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: false,
+        ),
+      );
+      
+      print('Face auth - result: $result');
+      return result;
+    } catch (e) {
+      print('Face auth - error: $e');
+      return false;
+    }
+  }
+
+  // Authenticate with strong biometric (high security)
+  Future<bool> _authenticateWithStrong() async {
+    try {
+      print('Strong auth - starting strong biometric authentication...');
+      
+      final result = await auth.authenticate(
+        localizedReason: 'Use your biometric to unlock',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: false,
+        ),
+      );
+      
+      print('Strong auth - result: $result');
+      return result;
+    } catch (e) {
+      print('Strong auth - error: $e');
+      return false;
+    }
+  }
+
+  // Authenticate with weak biometric (lower security)
+  Future<bool> _authenticateWithWeak() async {
+    try {
+      print('Weak auth - starting weak biometric authentication...');
+      
+      final result = await auth.authenticate(
+        localizedReason: 'Use your biometric to unlock',
+        options: const AuthenticationOptions(
+          biometricOnly: true,
+          stickyAuth: false,
+        ),
+      );
+      
+      print('Weak auth - result: $result');
+      return result;
+    } catch (e) {
+      print('Weak auth - error: $e');
+      return false;
+    }
   }
 } 

@@ -19,7 +19,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final authService = AuthService();
   bool _isAuthenticated = false;
   bool _isLoading = true;
-  int _failCount = 0;
+  // Remove _failCount since we're not doing automatic authentication
 
   Future<void> loadApps() async {
     final _apps = await sharedStorage.getApps();
@@ -32,42 +32,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    // Remove automatic authentication - only authenticate when user clicks button
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _promptAuthentication(); // gọi sau khi build xong
+      // Just load apps without authentication, but keep _isAuthenticated = false
+      if (mounted) {
+        setState(() {
+          _isAuthenticated = false; // Start with authentication required
+          _isLoading = false;
+        });
+        loadApps();
+      }
     });
   }
 
-  Future<void> _promptAuthentication() async {
-    bool authenticated = false;
-    if (!mounted) return;
-
-    while (_failCount < 3 && !authenticated) {
-      try {
-        final authenticated = await showBiometricDialog(context);
-
-        if (!authenticated) {
-          _failCount++;
-          if (_failCount >= 3) {
-            _showErrorDialog(context, 'Xác thực thất bại 3 lần. Ứng dụng sẽ tự thoát.');
-            await Future.delayed(Duration(seconds: 2));
-            exit(0); // thoát app (chạy trên Android/iOS thật)
-          } else {
-            _showErrorDialog(context, 'Xác thực thất bại. Vui lòng thử lại (${_failCount}/3)');
-          }
-        } else {
-          setState(() {
-            _isAuthenticated = authenticated;
-            _isLoading = false;
-          });
-          await loadApps();
-          _failCount = 0;
-          break;
-        }
-      } catch (e) {
-        _showErrorDialog(context, 'Lỗi xác thực: $e');
-        break;
-      }
-    }
+  @override
+  void dispose() {
+    // Clean up any pending operations
+    super.dispose();
   }
 
   void _showErrorDialog(BuildContext context, String message) {
@@ -76,7 +57,29 @@ class _HomeScreenState extends State<HomeScreen> {
       barrierDismissible: false,
       builder: (ctx) => AlertDialog(
         title: Text('Thông báo'),
-        content: Text(message),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            SizedBox(height: 16),
+            Text(
+              'Lưu ý:',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 8),
+            Text('• Đảm bảo thiết bị có cảm biến vân tay/khuôn mặt'),
+            Text('• Đã thiết lập vân tay/khuôn mặt trong cài đặt thiết bị'),
+            Text('• Đã bật xác thực sinh trắc học trong ứng dụng'),
+            // if (_failCount >= 2) ...[ // This line is removed
+            //   SizedBox(height: 8),
+            //   Text(
+            //     'Sau 3 lần thất bại, ứng dụng sẽ tự động thoát.',
+            //     style: TextStyle(color: Colors.red),
+            //   ),
+            // ],
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
@@ -87,36 +90,154 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-
-  Future<bool> showBiometricDialog(BuildContext context) async {
-    return await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            Future.microtask(() async {
-              final authenticated = await authService.authenticateBiometricOnly();
-
-              if (!context.mounted) return;
-
-              Navigator.of(context).pop(authenticated);
-            });
-
-            return AlertDialog(
-              title: Text('Xác thực'),
-              content: Row(
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(width: 16),
-                  Expanded(child: Text('Vui lòng xác thực bằng vân tay hoặc khuôn mặt...')),
-                ],
-              ),
-            );
-          },
+  // Platform-specific biometric test method
+  Future<void> _testFingerprintDirect() async {
+    try {
+      print('Home test - Testing platform-specific biometric...');
+      
+      // Store context reference before async operations
+      final currentContext = context;
+      
+      final result = await authService.authenticatePlatformBiometric();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text(result ? 'Biometric authentication successful!' : 'Biometric authentication failed'),
+            backgroundColor: result ? Colors.green : Colors.red,
+            duration: Duration(seconds: 3),
+          ),
         );
-      },
-    ).then((value) => value ?? false);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // Smart authentication method with platform-specific biometric
+  Future<void> _authenticateSmart() async {
+    // Store context reference before async operations
+    final currentContext = context;
+    bool dialogClosed = false;
+    
+    try {
+      print('Home - Starting platform-specific authentication...');
+      
+      // Show loading dialog
+      showDialog(
+        context: currentContext,
+        barrierDismissible: false,
+        builder: (dialogContext) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.security, color: Colors.indigo),
+              SizedBox(width: 8),
+              Text('Xác thực'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(height: 16),
+              Text(
+                'Đang chuẩn bị xác thực...',
+                textAlign: TextAlign.center,
+              ),
+              SizedBox(height: 8),
+              Text(
+                'Hệ thống sẽ tự động chọn phương thức xác thực phù hợp',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
+
+      // Perform platform-specific authentication
+      final result = await authService.authenticatePlatformBiometric();
+      
+      // Close loading dialog safely
+      if (mounted && !dialogClosed) {
+        try {
+          Navigator.of(currentContext).pop();
+          dialogClosed = true;
+        } catch (e) {
+          print('Error closing dialog: $e');
+        }
+      }
+      
+      if (mounted) {
+        if (result) {
+          setState(() {
+            _isAuthenticated = true;
+          });
+          ScaffoldMessenger.of(currentContext).showSnackBar(
+            SnackBar(
+              content: Text('Xác thực thành công!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(currentContext).showSnackBar(
+            SnackBar(
+              content: Text('Xác thực thất bại'),
+              backgroundColor: Colors.red,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+      
+    } catch (e) {
+      // Close loading dialog if still open
+      if (mounted && !dialogClosed) {
+        try {
+          Navigator.of(currentContext).pop();
+          dialogClosed = true;
+        } catch (e) {
+          print('Error closing dialog in catch: $e');
+        }
+      }
+      
+      if (mounted) {
+        ScaffoldMessenger.of(currentContext).showSnackBar(
+          SnackBar(
+            content: Text('Lỗi: $e'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
+  }
+
+  // Logout function to reset authentication
+  void _logout() {
+    setState(() {
+      _isAuthenticated = false;
+    });
+    
+    // Store context reference before async operations
+    final currentContext = context;
+    
+    ScaffoldMessenger.of(currentContext).showSnackBar(
+      SnackBar(
+        content: Text('Đã đăng xuất'),
+        backgroundColor: Colors.orange,
+        duration: Duration(seconds: 2),
+      ),
+    );
   }
 
   void _openAccounts(App app) {
@@ -144,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return Scaffold(
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -181,38 +302,54 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Show locked state when not authenticated
     if (!_isAuthenticated) {
       return Scaffold(
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
+        appBar: AppBar(
+          title: Text('Hi Secure'),
+          backgroundColor: Colors.green,
+          foregroundColor: Colors.white,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.settings),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => SettingsScreen()),
+                );
+              },
+            ),
+          ],
+        ),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.security,
+                Icons.lock,
                 size: 80,
                 color: Colors.white,
               ),
-              SizedBox(height: 24),
-              Text(
-                'Hi Secure',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
+              SizedBox(height: 32),
+              ElevatedButton.icon(
+                onPressed: _authenticateSmart,
+                icon: Icon(Icons.security),
+                label: Text('Xác thực ngay'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: Colors.green.shade800,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
               SizedBox(height: 16),
               Text(
-                'Setting up security...',
+                'Nhấn nút xác thực để mở khóa ứng dụng',
                 style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.white70,
+                  fontSize: 12,
+                  color: Colors.white60,
                 ),
-              ),
-              SizedBox(height: 32),
-              CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
@@ -220,12 +357,18 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // Show main app when authenticated
     return Scaffold(
       appBar: AppBar(
         title: Text('Apps'),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: Icon(Icons.logout),
+            onPressed: _logout,
+            tooltip: 'Logout',
+          ),
           IconButton(
             icon: Icon(Icons.settings),
             onPressed: () {
@@ -276,7 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       backgroundColor: Colors.indigo[100],
                       child: Icon(
                         Icons.apps,
-                        color: Colors.indigo[700],
+                        color: Colors.green[700],
                       ),
                     ),
                     title: Text(
@@ -284,15 +427,10 @@ class _HomeScreenState extends State<HomeScreen> {
                       style: TextStyle(fontWeight: FontWeight.w500),
                     ),
                     subtitle: Text(app.url ?? 'No URL configured'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.edit, color: Colors.indigo[600]),
-                          onPressed: () => _editApp(app),
-                        ),
-                        Icon(Icons.arrow_forward_ios, size: 16),
-                      ],
+                    trailing: IconButton(
+                      icon: Icon(Icons.edit, color: Colors.green[600]),
+                      onPressed: () => _editApp(app),
+                      tooltip: 'Edit App',
                     ),
                     onTap: () => _openAccounts(app),
                   ),
@@ -302,7 +440,7 @@ class _HomeScreenState extends State<HomeScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: _addApp,
         child: Icon(Icons.add),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
     );

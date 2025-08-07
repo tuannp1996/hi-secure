@@ -98,7 +98,7 @@ class _AppFormScreenState extends State<AppFormScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(isEditing ? 'Edit App' : 'Add New App'),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
         actions: isEditing ? [
           IconButton(
@@ -153,7 +153,7 @@ class _AppFormScreenState extends State<AppFormScreen> {
               ElevatedButton(
                 onPressed: _isLoading ? null : save,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.indigo,
+                  backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
                   padding: EdgeInsets.symmetric(vertical: 16),
                 ),

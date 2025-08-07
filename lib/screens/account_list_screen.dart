@@ -346,7 +346,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('${widget.app.name} Accounts'),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
       body: accounts.isEmpty
@@ -430,7 +430,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
                            backgroundColor: Colors.indigo[100],
                            child: Icon(
                              Icons.person,
-                             color: Colors.indigo[700],
+                             color: Colors.green[700],
                            ),
                          ),
                          title: Text(
@@ -449,7 +449,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
                              isPasswordVisible
                                  ? Icons.visibility_off
                                  : Icons.visibility,
-                             color: Colors.indigo[600],
+                             color: Colors.green[600],
                            ),
                            onPressed: () => _handleRevealPassword(entry.key),
                          ),
@@ -462,7 +462,7 @@ class _AccountListScreenState extends State<AccountListScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: _addAccount,
         child: Icon(Icons.add),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
     );

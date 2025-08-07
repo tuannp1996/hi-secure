@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:hi_secure/service/auth_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   @override
@@ -12,6 +13,186 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final newPasscodeController = TextEditingController();
   final confirmPasscodeController = TextEditingController();
   bool _isLoading = false;
+  final authService = AuthService();
+  bool _biometricEnabled = false;
+  Map<String, dynamic> _biometricStatus = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final enabled = await authService.isBiometricEnabled();
+    final status = await authService.getBiometricStatus();
+    
+    setState(() {
+      _biometricEnabled = enabled;
+      _biometricStatus = status;
+    });
+  }
+
+  Future<void> _toggleBiometric(bool value) async {
+    await authService.setBiometricEnabled(value);
+    setState(() {
+      _biometricEnabled = value;
+    });
+  }
+
+  Future<void> _testBiometric() async {
+    // Show a loading dialog first
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        title: Text('Testing Biometric'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Checking biometric status...'),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      // Step 1: Check biometric status
+      final status = await authService.getBiometricStatus();
+      print('Test - Biometric status: $status');
+
+      // Step 2: Check if enabled
+      final enabled = await authService.isBiometricEnabled();
+      print('Test - Biometric enabled: $enabled');
+
+      // Step 3: Check if available
+      final available = await authService.isBiometricAvailable();
+      print('Test - Biometric available: $available');
+
+      // Close the loading dialog
+      if (mounted) Navigator.of(context).pop();
+
+      if (!enabled) {
+        _showTestResult('Biometric not enabled in app settings', false);
+        return;
+      }
+
+      if (!available) {
+        _showTestResult('Biometric not available on device', false);
+        return;
+      }
+
+      // Step 4: Attempt authentication
+      _showTestResult('Starting biometric authentication...', null);
+      
+      final result = await authService.authenticateBiometricOnly();
+      
+      if (mounted) {
+        _showTestResult(
+          result ? 'Authentication successful!' : 'Authentication failed',
+          result,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.of(context).pop(); // Close loading dialog
+        _showTestResult('Error: $e', false);
+      }
+    }
+  }
+
+  void _showTestResult(String message, bool? success) {
+    Color backgroundColor = Colors.blue;
+    if (success == true) backgroundColor = Colors.green;
+    if (success == false) backgroundColor = Colors.red;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: backgroundColor,
+        duration: Duration(seconds: 3),
+      ),
+    );
+  }
+
+  Future<void> _testDirectBiometric() async {
+    try {
+      // Direct test without any app dialogs
+      print('Direct test - starting biometric authentication...');
+      
+      final result = await authService.authenticateBiometricOnly();
+      
+      if (mounted) {
+        _showTestResult(
+          result ? 'Direct test successful!' : 'Direct test failed - no dialog appeared',
+          result,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTestResult('Direct test error: $e', false);
+      }
+    }
+  }
+
+  Future<void> _testSimpleBiometric() async {
+    try {
+      print('Simple test - starting basic biometric test...');
+      
+      final result = await authService.testBiometricAuthentication();
+      
+      if (mounted) {
+        _showTestResult(
+          result ? 'Simple test successful!' : 'Simple test failed',
+          result,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTestResult('Simple test error: $e', false);
+      }
+    }
+  }
+
+  Future<void> _testDirectFingerprint() async {
+    try {
+      print('Direct fingerprint test - starting...');
+      
+      final result = await authService.authenticateBiometricDirect();
+      
+      if (mounted) {
+        _showTestResult(
+          result ? 'Fingerprint dialog appeared and worked!' : 'Fingerprint dialog did not appear',
+          result,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTestResult('Direct fingerprint error: $e', false);
+      }
+    }
+  }
+
+  Future<void> _testSmartAuth() async {
+    try {
+      print('Smart auth test - starting...');
+      
+      final result = await authService.authenticateSmart(context);
+      
+      if (mounted) {
+        _showTestResult(
+          result ? 'Smart authentication successful!' : 'Smart authentication failed',
+          result,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        _showTestResult('Smart auth error: $e', false);
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -27,7 +208,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.security, color: Colors.indigo),
+            Icon(Icons.security, color: Colors.green),
             SizedBox(width: 8),
             Text('Change Passcode'),
           ],
@@ -88,7 +269,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             onPressed: _changePasscode,
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.indigo,
+              backgroundColor: Colors.green,
               foregroundColor: Colors.white,
             ),
             child: Text('Change'),
@@ -165,7 +346,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Settings'),
-        backgroundColor: Colors.indigo,
+        backgroundColor: Colors.green,
         foregroundColor: Colors.white,
       ),
       body: ListView(
@@ -175,7 +356,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: Icon(Icons.security, color: Colors.indigo),
+                  leading: Icon(Icons.security, color: Colors.green),
                   title: Text('Security Settings'),
                   subtitle: Text('Manage your passcode and authentication'),
                 ),
@@ -192,10 +373,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: Text('Biometric Authentication'),
                   subtitle: Text('Use fingerprint or face ID'),
                   trailing: Switch(
-                    value: true, // This would be dynamic in a real app
-                    onChanged: (value) {
-                      // Handle biometric toggle
-                    },
+                    value: _biometricEnabled,
+                    onChanged: _toggleBiometric,
                   ),
                 ),
               ],
@@ -203,10 +382,76 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           SizedBox(height: 16),
           Card(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Debug Information',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text('Can Check Biometrics: ${_biometricStatus['canCheckBiometrics'] ?? 'Unknown'}'),
+                  Text('Device Supported: ${_biometricStatus['isDeviceSupported'] ?? 'Unknown'}'),
+                  Text('Available Biometrics: ${_biometricStatus['availableBiometrics'] ?? []}'),
+                  if (_biometricStatus['error'] != null)
+                    Text('Error: ${_biometricStatus['error']}', style: TextStyle(color: Colors.red)),
+                  SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _testBiometric,
+                    child: Text('Test Biometric Authentication'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _testDirectBiometric,
+                    child: Text('Direct Biometric Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _testSimpleBiometric,
+                    child: Text('Simple Biometric Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.purple,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _testDirectFingerprint,
+                    child: Text('Direct Fingerprint Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _testSmartAuth,
+                    child: Text('Smart Authentication Test'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          SizedBox(height: 16),
+          Card(
             child: Column(
               children: [
                 ListTile(
-                  leading: Icon(Icons.backup, color: Colors.indigo),
+                  leading: Icon(Icons.backup, color: Colors.green),
                   title: Text('Backup & Restore'),
                   subtitle: Text('Export and import your data'),
                 ),
@@ -237,7 +482,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: Column(
               children: [
                 ListTile(
-                  leading: Icon(Icons.info, color: Colors.indigo),
+                  leading: Icon(Icons.info, color: Colors.green),
                   title: Text('About'),
                   subtitle: Text('App information and help'),
                 ),
