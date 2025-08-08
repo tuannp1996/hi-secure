@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:async';
 import 'package:device_apps/device_apps.dart';
 import 'package:flutter/material.dart';
@@ -8,7 +7,6 @@ import 'package:hi_secure/model/account.dart';
 import 'package:hi_secure/screens/account_form_screen.dart';
 import 'package:hi_secure/service/auth_service.dart';
 import 'package:hi_secure/service/account_service.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/services.dart';
 

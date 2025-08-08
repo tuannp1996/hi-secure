@@ -4,5 +4,11 @@
 <dict>
 	<key>com.apple.security.app-sandbox</key>
 	<true/>
+	<key>application-identifier</key>
+	<string>$(AppIdentifierPrefix)org.futu.hiSecure</string>
+	<key>keychain-access-groups</key>
+	<array>
+		<string>$(AppIdentifierPrefix)org.futu.hiSecure</string>
+	</array>
 </dict>
 </plist>

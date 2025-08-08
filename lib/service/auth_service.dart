@@ -33,6 +33,9 @@ class AuthService {
       await storage.write(key: _passcodeKey, value: passcode);
       return true;
     } catch (e) {
+      print(
+        'createPasscode Fail: $e'
+      );
       return false;
     }
   }
