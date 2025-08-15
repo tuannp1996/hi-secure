@@ -1,0 +1,44 @@
+name: Build Flutter APK
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.32.8'
+
+    - name: Install dependencies
+      run: flutter pub get
+
+    - name: Build APK
+      run: flutter build apk --release
+
+    # - name: Upload APK
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: app-release
+    #     path: build/app/outputs/flutter-apk/app-release.apk
+
+    - name: Upload APK to VPS
+      env:
+        SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_KEY }}
+        VPS_HOST: ${{ secrets.VPS_HOST }}
+        VPS_USER: ${{ secrets.VPS_USER }}
+        VPS_PATH: ${{ secrets.VPS_PATH }}
+      run: |
+        echo "$SSH_PRIVATE_KEY" > key.pem
+        chmod 600 key.pem
+        scp -i key.pem -o StrictHostKeyChecking=no \
+          build/app/outputs/flutter-apk/app-release.apk \
+          $VPS_USER@$VPS_HOST:$VPS_PATH
